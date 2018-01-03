@@ -5,11 +5,25 @@
 
 """
 import os
+from config import path_data_all, path_data_continue
+import config
 import bisect
 import datetime
 from matplotlib.dates import date2num
 from matplotlib.dates import num2date
 from PySide.QtCore import Signal, QObject
+import numpy as np
+import indicators
+
+"""
+technical analysis indicators
+"""
+indicators = {
+    "250天最高": indicators.high250,
+    "250天最低": indicators.low250,
+    "125天最低": indicators.low125,
+    "30天最低": indicators.low30,
+}
 
 
 class Contract:
@@ -24,7 +38,6 @@ class Contract:
         self.data = data
         # 取出日期作为index,用来查询
         self.data_index = [item[0] for item in data]
-
         # 未开盘的返回None
         self.price = None
         # 设定日期
@@ -38,6 +51,10 @@ class Contract:
         self.over = False
         # 是否绘制到matplot,暂时把这个放这里
         self.hidden = True
+
+        self.indicators = {}
+        for name in indicators:
+            self.indicators[name] = indicators[name](data)
 
     def setDate(self, d):
         """
@@ -131,8 +148,9 @@ class Model(QObject):
     min_hold_ratio = 0
     max_hold_ratio = 8
 
-    #记录交易log
-    log=open('trade.log','a')
+    # 记录交易log
+    log = open('trade.log', 'a')
+
     def __init__(self):
         super(Model, self).__init__()
 
@@ -141,24 +159,23 @@ class Model(QObject):
         除了name以外的,根据投资调整上限,另外还要调整cash.name自身跳过,不然会有死循环
         """
 
-    def move_index(self,start_delta,end_delta):
-        start_new = self.start_date+ start_delta
-        end_new = self.end_date+ end_delta
-        if end_new - start_new < 10:
+    def move_index(self, start_delta, end_delta):
+        start_new = self.start_date + start_delta
+        end_new = self.end_date + end_delta
+        if end_new - start_new < 30:
             return
-        if end_new - start_new > 100:
+        if end_new - start_new > config.max_duration:
             return
-        self.start_date= start_new
-        self.end_date= end_new
+        self.start_date = start_new
+        self.end_date = end_new
 
         self.event_display_range.emit()
-
 
     def get_show_data(self):
         contract = self.contracts[self.show_contract]
         start_index = bisect.bisect_left(contract.data_index, self.start_date,)
         end_index = bisect.bisect_right(contract.data_index, self.end_date,)
-        return contract.data[start_index:end_index]
+        return contract.data[start_index:end_index], [item[start_index:end_index] for item in contract.indicators.values()]
 
     def calculate_assets(self):
         """
@@ -174,7 +191,7 @@ class Model(QObject):
         从文件加载历史交易数据
         """
 
-        p = os.path.expanduser('~/finance/czce/continue.txt')
+        p = os.path.expanduser(path_data_continue)
         quotes = []
         for line in open(p):
             d, _open, high, low, close, vol = line.split()
@@ -185,7 +202,7 @@ class Model(QObject):
 
         data = {'continue':  quotes}
 
-        p = os.path.expanduser('~/finance/czce/all.txt')
+        p = os.path.expanduser(path_data_all)
         for line in open(p):
             d, name, _open, high, low, close, vol = line.split()
             d = datetime.date(int(d[:4]), int(d[4:6]), int(d[6:]))
@@ -201,8 +218,8 @@ class Model(QObject):
         self.contracts['continue'].hidden = False
         # 显示的起始日期
         self.start_date, _ = data['continue'].getRange()
-        # 显示的结束日期,取出continue的第80个周期
-        self.end_date = self.start_date + 80
+        self.end_date = self.start_date + config.end_date
+        self.start_date = self.start_date + config.start_date
         # 最大显示日期
         self.max_date = self.end_date
 
@@ -215,13 +232,15 @@ class Model(QObject):
         """
         记录一日的资产持有
         """
-        d=num2date(self.max_date).strftime('%Y-%m-%d')
-        hold=''
+        d = num2date(self.max_date).strftime('%Y-%m-%d')
+        hold = ''
         for contract in self.contracts.values():
-            if not contract.hold==0:
-                hold+="'%s':[%s,%s],"%(contract.name,contract.hold,contract.price)
-        if len(hold)>0:
-            out="{'cash':%s,'assets':%s,%s}\n"%(self.cash,self.assets,hold)
+            if not contract.hold == 0:
+                hold += "'%s':[%s,%s]," % (contract.name,
+                                           contract.hold, contract.price)
+        if len(hold) > 0:
+            out = "{'cash':%s,'assets':%s,%s}\n" % (
+                self.cash, self.assets, hold)
             self.log.write(out)
 
     def newday(self):

@@ -44,6 +44,7 @@ class Chart(QVBoxLayout):
         self.figure = Figure()
         self.ax = self.figure.add_subplot(111)
         self.ax2 = self.ax.twinx()
+        self.ax3 = self.ax.twinx()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self.parent)
 
@@ -55,14 +56,15 @@ class Chart(QVBoxLayout):
         """
         绑定到model中显示范围改变的事件
         """
-        data = model.get_show_data()
-        self.plot(data)
+        data,indicators = model.get_show_data()
+        self.plot(data,indicators)
 
-    def plot(self, data):
+    def plot(self, data,indicators):
         ax1 = self.ax
         ax1.clear()
         ax2 = self.ax2
         ax2.clear()
+        self.ax3.clear()
 
         self.ax.xaxis.set_major_locator(mondays)
         self.ax.xaxis.set_minor_locator(alldays)
@@ -88,6 +90,9 @@ class Chart(QVBoxLayout):
         volume = [x[5] for x in data]
         volume = np.asarray(volume)
 
-        ax2.plot(dates, volume, color='gray')
+        ax2.bar(dates, volume, color='gray',alpha=0.3)
+        for indicator in indicators:
+            self.ax3.plot(dates, indicator)
+
 
         self.canvas.draw()

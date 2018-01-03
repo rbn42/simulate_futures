@@ -10,7 +10,7 @@ class Window(QWidget):
         super(Window, self).__init__(parent)
 
         layout = QHBoxLayout()
-        self.chart=Chart(self)
+        self.chart = Chart(self)
 
         leftpanel = QVBoxLayout()
         leftpanel.addLayout(self.chart)
@@ -23,10 +23,9 @@ class Window(QWidget):
         self.setLayout(layout)
         # self.init_data()
 
-
-
     def getData(self):
         return self.data[self.name]
+
     def init_rangepanel(self):
         # 范围控制面板
         self.rangepanel = QHBoxLayout()
@@ -54,13 +53,11 @@ class Window(QWidget):
         # 占位空label
         self.rightpanel.addWidget(QLabel())
 
-
-        asserts_view=AssetsView()
+        asserts_view = AssetsView()
 
         self.contractsview = ContractsView()
         self.rightpanel.addLayout(self.contractsview)
         self.rightpanel.addWidget(asserts_view)
-
 
         btn = QPushButton('新的一天')
         btn.clicked.connect(model.newday)
@@ -74,7 +71,7 @@ app = QApplication(sys.argv)
 
 main = Window()
 
-#调整字体大小
+# 调整字体大小
 main.setStyleSheet(open('./app.css').read())
 main.show()
 
