@@ -93,7 +93,11 @@ class ContractView(QHBoxLayout):
 
     def change_hold_ratio(self, newholdratio):
         if not self.locked:
-            newhold = model.assets * newholdratio/100 / self.contract.price
+            if self.contract.price==0:
+                newholdratio=0
+                newhold=0
+            else:
+                newhold = model.assets * newholdratio/100 / self.contract.price
 
             model.cash -= (newhold - self.contract.hold) * self.contract.price
             self.contract.hold = newhold

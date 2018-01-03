@@ -63,14 +63,8 @@ class Window(QWidget):
 
 
         btn = QPushButton('新的一天')
-        btn.clicked.connect(self.newday)
+        btn.clicked.connect(model.newday)
         self.rightpanel.addWidget(btn)
-    def newday(self):
-        """
-        新加一日数据,同时更新价格,以及计算资产量
-        这里不需要有跳过多日的api
-        """
-        model.newday()
 
 
 from model import model

@@ -8,6 +8,7 @@ import os
 import bisect
 import datetime
 from matplotlib.dates import date2num
+from matplotlib.dates import num2date
 from PySide.QtCore import Signal, QObject
 
 
@@ -53,7 +54,7 @@ class Contract:
             self.price = None
             self.vol = None
         else:
-            index = bisect.bisect_left(self.data_index, d)
+            index = bisect.bisect_right(self.data_index, d)
             self.price = self.data[index - 1][4]  # 返回收盘价
             self.vol = self.data[index - 1][5]  # 记录成交量方便看出主力盘
             # 记录周期的位置,方便看出结束时间
@@ -130,6 +131,11 @@ class Model(QObject):
     min_hold_ratio = 0
     max_hold_ratio = 8
 
+    #记录交易log
+    log=open('trade.log','a')
+    def __init__(self):
+        super(Model, self).__init__()
+
     def invest(self, name):
         """
         除了name以外的,根据投资调整上限,另外还要调整cash.name自身跳过,不然会有死循环
@@ -195,8 +201,8 @@ class Model(QObject):
         self.contracts['continue'].hidden = False
         # 显示的起始日期
         self.start_date, _ = data['continue'].getRange()
-        # 显示的结束日期,取出continue的第20个周期
-        self.end_date = self.start_date + 20
+        # 显示的结束日期,取出continue的第80个周期
+        self.end_date = self.start_date + 80
         # 最大显示日期
         self.max_date = self.end_date
 
@@ -205,7 +211,28 @@ class Model(QObject):
         # 默认显示continue,现在只显示一个
         self.show_contract = 'continue'
 
+    def write_log(self):
+        """
+        记录一日的资产持有
+        """
+        d=num2date(self.max_date).strftime('%Y-%m-%d')
+        hold=''
+        for contract in self.contracts.values():
+            if not contract.hold==0:
+                hold+="'%s':[%s,%s],"%(contract.name,contract.hold,contract.price)
+        if len(hold)>0:
+            out="{'cash':%s,'assets':%s,%s}\n"%(self.cash,self.assets,hold)
+            self.log.write(out)
+
     def newday(self):
+        """
+        新加一日数据,同时更新价格,以及计算资产量
+        这里不需要有跳过多日的api
+
+        2018-01-03 10:57:11 Wed CST
+        同时这里需要留下历史log记录
+        """
+        self.write_log()
         self.max_date += 1
 
         # 移动显示的区域
