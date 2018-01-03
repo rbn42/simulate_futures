@@ -12,7 +12,10 @@ class ContractButton(QPushButton):
         self.name = name
 
     def click(self):
-        model.contracts[name].hidden = not self.isChecked()
+        contract=model.contracts[self.name]
+        #contract.hidden = not self.isChecked()
+        model.show_contract=self.name
+        model.event_display_range.emit()
 
 
 class ContractsView(QVBoxLayout):
@@ -24,7 +27,7 @@ class ContractsView(QVBoxLayout):
         self.contractviews = {name: ContractView(
             contract) for name, contract in model.contracts.items()}
 
-        model.newdaydisplay.connect(self.update_contractsview)
+        model.event_newday_display.connect(self.update_contractsview)
         # self.update()
 
     def update_contractsview(self):
@@ -52,10 +55,10 @@ class ContractView(QHBoxLayout):
 
     def __init__(self, contract, parent=None):
         super(ContractView, self).__init__(parent)
+        self.locked = False
         self.name = ContractButton(contract.name)
         self.price = QLabel()
         self.hold = QDoubleSpinBox()
-        self.hold.setPrefix('$')
         self.hold_ratio = QDoubleSpinBox()
         self.hold_ratio.setSuffix('%')
         self.vol = QLabel()
@@ -72,23 +75,48 @@ class ContractView(QHBoxLayout):
 
         self.hold.valueChanged.connect(self.change_hold)
         self.hold_ratio.valueChanged.connect(self.change_hold_ratio)
-    def change_hold(self,value):
+
+    def change_hold(self, newhold):
         """
         通过setValue也会触发这里,但是如果数值不变,就不会有问题.但是有小数的情况下,或许会出现死循环?
         为了避免死循环,可以在这里传入name参数,跳过这个spinbox不变动
         """
-        print(value)
-    def change_hold_ratio(self,value):
-        print(value)
+        if not self.locked:
+            model.cash -= (newhold - self.contract.hold) * self.contract.price
+            self.contract.hold = newhold
+            model.event_invest_display.emit()
+            # 为了避免和hold_ratio联动修改时候的死循环,加一个锁
+            self.locked = True
+            self.hold_ratio.setValue(
+                100*newhold * self.contract.price / model.assets)
+            self.locked = False
 
+    def change_hold_ratio(self, newholdratio):
+        if not self.locked:
+            newhold = model.assets * newholdratio/100 / self.contract.price
+
+            model.cash -= (newhold - self.contract.hold) * self.contract.price
+            self.contract.hold = newhold
+            model.event_invest_display.emit()
+
+            self.locked = True
+            self.hold.setValue(newhold)
+            self.locked = False
     def update_view(self):
         self.price.setText('$%.2f' % self.contract.price)
         self.hold.setValue(self.contract.hold)
-        self.hold_ratio.setValue(self.contract.hold_ratio)
+        self.hold_ratio.setValue(self.contract.hold_ratio * 100)
         self.vol.setText('%d' % self.contract.vol)
         self.position.setText(self.contract.position)
+
+        self.hold.setMinimum(self.contract.min_hold)
+        self.hold_ratio.setMinimum(self.contract.min_hold_ratio * 100)
+        self.hold.setMaximum(self.contract.max_hold)
+        self.hold_ratio.setMaximum(self.contract.max_hold_ratio * 100)
+
         self.price.update()
         self.hold.update()
+        self.hold_ratio.update()
         self.vol.update()
         self.position.update()
 
@@ -99,3 +127,23 @@ class ContractView(QHBoxLayout):
         self.vol.deleteLater()
         self.name.deleteLater()
         self.position.deleteLater()
+
+
+class AssetsView(QLabel):
+    """
+    显示总资产,现金量
+    """
+
+    def __init__(self,  parent=None):
+        super(AssetsView, self).__init__(parent)
+
+        self.setMaximumHeight(20)
+
+        model.event_newday_display.connect(self._update)
+        model.event_invest_display.connect(self._update)
+
+    def _update(self):
+        ratio = 100 * (1 - model.cash / model.assets)
+        self.setText('现金:%.2f 总资产:%.2f 投资占比:%.2f%%' %
+                     (model.cash, model.assets, ratio))
+        self.update()
