@@ -23,6 +23,7 @@ indicators = {
     "250天最低": indicators.low250,
     "125天最低": indicators.low125,
     "30天最低": indicators.low30,
+    "0": indicators.zero,
 }
 
 
@@ -103,16 +104,17 @@ class Contract:
         max_cash_ratio = 1 - model.min_hold_ratio
         cash_ratio = model.cash / model.assets
 
-        self.min_hold = 0
-        self.min_hold_ratio = 0
-
         if self.price is not None and self.price > 0:
             self.hold_ratio = self.hold * self.price / model.assets
             self.max_hold_ratio = self.hold_ratio + cash_ratio - min_cash_ratio
             self.max_hold = self.max_hold_ratio * model.assets / self.price
+            self.min_hold_ratio = self.hold_ratio + cash_ratio - max_cash_ratio
+            self.min_hold = self.min_hold_ratio * model.assets / self.price
         else:
             self.max_hold = 0
             self.max_hold_ratio = 0
+            self.min_hold = 0
+            self.min_hold_ratio = 0
             self.hold_ratio = 0
 
     def getRange(self):
@@ -145,8 +147,8 @@ class Model(QObject):
     cash = 10000
 
     # 不允许空头,原因见上
-    min_hold_ratio = 0
-    max_hold_ratio = 8
+    min_hold_ratio = config.min_hold_ratio
+    max_hold_ratio = config.max_hold_ratio
 
     # 记录交易log
     log = open('trade.log', 'a')
@@ -239,9 +241,11 @@ class Model(QObject):
                 hold += "'%s':[%s,%s]," % (contract.name,
                                            contract.hold, contract.price)
         if len(hold) > 0:
-            out = "{'cash':%s,'assets':%s,%s}\n" % (
+            out = "{'date':'%s','cash':%s,'assets':%s,%s}\n" % (
+                num2date(self.max_date).strftime('%Y-%m-%d'),
                 self.cash, self.assets, hold)
             self.log.write(out)
+        self.log.flush()
 
     def newday(self):
         """

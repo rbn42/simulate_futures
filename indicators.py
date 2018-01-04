@@ -32,3 +32,6 @@ def low250(data):
 
 def low30(data):
     return fun(data, 30, 2, np.min)
+def zero(data):
+    size = len(data)
+    return np.zeros(size)
